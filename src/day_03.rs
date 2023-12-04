@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::Result;
 
@@ -33,19 +33,29 @@ impl FromStr for SchematicMap {
         let mut number_start = None;
         for (row, line) in s.lines().enumerate() {
             if let Some(start) = number_start {
-                part_numbers.push((row as isize, start as isize, (line.len() as isize)-1, number.parse::<usize>()?));
+                part_numbers.push((
+                    row as isize,
+                    start as isize,
+                    (line.len() as isize) - 1,
+                    number.parse::<usize>()?,
+                ));
             }
             number = String::default();
             number_start = None;
             for (col, cell) in line.chars().enumerate() {
-                match cell{
+                match cell {
                     cell if cell.is_ascii_digit() => {
                         let _ = number_start.get_or_insert(col);
                         number.push(cell);
                     }
                     cell => {
                         if let Some(start) = number_start {
-                            part_numbers.push((row as isize, start as isize, (col as isize)-1, number.parse::<usize>()?));
+                            part_numbers.push((
+                                row as isize,
+                                start as isize,
+                                (col as isize) - 1,
+                                number.parse::<usize>()?,
+                            ));
                         }
                         number = String::default();
                         number_start = None;
@@ -58,7 +68,10 @@ impl FromStr for SchematicMap {
             }
         }
 
-        Ok(SchematicMap{parts, part_numbers})
+        Ok(SchematicMap {
+            parts,
+            part_numbers,
+        })
     }
 }
 
@@ -71,10 +84,9 @@ impl Schematic {
 }
 
 fn parse_schematic(schematic: &str) -> Result<Schematic> {
-
     let mut parsed_schematic = Schematic::default();
 
-    for (row,line) in schematic.lines().enumerate() {
+    for (row, line) in schematic.lines().enumerate() {
         let mut parsed_schematic_row = Vec::with_capacity(line.len());
         for c in line.chars() {
             if c.is_ascii_digit() {
@@ -98,28 +110,23 @@ pub mod problem_1 {
     use super::{parse_schematic, Schematic, SchematicCell};
     use anyhow::Result;
 
-    fn get_number(schematic: &Schematic, row:isize, col:isize) -> Option<usize> {
-
+    #[allow(dead_code)]
+    fn get_number(schematic: &Schematic, row: isize, col: isize) -> Option<usize> {
         // If its not a number return none.
-        match schematic.get(row as isize, col as isize) {
+        match schematic.get(row, col) {
             Some(SchematicCell::Number(_)) => (),
             _ => return None,
         }
 
         let mut num_start = col;
-        loop {
-            if let Some(SchematicCell::Number(_)) = schematic.get(row, num_start as isize - 1) {
-                num_start-=1;
-            } else { break; }
+        while let Some(SchematicCell::Number(_)) = schematic.get(row, num_start - 1) {
+            num_start -= 1;
         }
 
         let mut number = 0usize;
-        loop {
-            let cell = schematic.get(row, num_start);
-            if let Some(SchematicCell::Number(ref d)) = cell {
-                number = number * 10 + d;
-                num_start += 1;
-            } else { break; }
+        while let Some(SchematicCell::Number(ref d)) = schematic.get(row, num_start) {
+            number = number * 10 + d;
+            num_start += 1;
         }
 
         Some(number)
@@ -133,16 +140,20 @@ pub mod problem_1 {
         let row_e = (row as isize) + 1;
 
         loop {
-            if row_s > row_e { break; }
+            if row_s > row_e {
+                break;
+            }
             loop {
-                if col_s > col_e { break; }
+                if col_s > col_e {
+                    break;
+                }
                 if let Some(SchematicCell::Symbol(_)) = schematic.get(row_s, col_s) {
                     return true;
                 }
                 col_s += 1;
             }
             row_s += 1;
-            col_s = (col as isize) -1;
+            col_s = (col as isize) - 1;
         }
 
         false
@@ -164,14 +175,14 @@ pub mod problem_1 {
             for (col, cell) in line.iter().enumerate() {
                 match cell {
                     SchematicCell::Number(ref d) => {
-                       state = match state {
+                        state = match state {
                             State::Number(n) | State::Other(n) => {
                                 if touches_symbol(&schematic, col, row) {
                                     State::Part(n * 10 + d)
                                 } else {
                                     State::Number(n * 10 + d)
                                 }
-                            },
+                            }
                             State::Part(n) => State::Part(n * 10 + d),
                         };
                     }
@@ -197,8 +208,8 @@ pub mod problem_1 {
 }
 
 pub mod problem_2 {
-    use anyhow::Result;
     use super::SchematicMap;
+    use anyhow::Result;
 
     pub fn solve(input: &str) -> Result<usize> {
         let map: SchematicMap = input.parse()?;
@@ -208,23 +219,17 @@ pub mod problem_2 {
         for (row, col, _) in map.parts.iter().filter(|(_, _, part)| *part == '*') {
             let mut part = Vec::new();
             for part_number in map.part_numbers.iter() {
-                let within_row_range = *row >= part_number.0-1 && *row <= part_number.0+1;
-                let within_col_range = *col >= part_number.1-1 && *col <= part_number.2+1;
+                let within_row_range = *row >= part_number.0 - 1 && *row <= part_number.0 + 1;
+                let within_col_range = *col >= part_number.1 - 1 && *col <= part_number.2 + 1;
 
                 if within_row_range && within_col_range {
                     part.push(part_number.3);
-//                    if part.len() > 2 {
-//                        break;
-//                    }
                 }
             }
-            
-            print!{"{part:?}"};
+
             if part.len() == 2 {
-                print!(" * ");
                 gears += part.into_iter().reduce(|prod, num| prod * num).unwrap();
             }
-            println!("");
         }
 
         Ok(gears)
