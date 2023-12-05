@@ -1,6 +1,6 @@
-use std::{str::FromStr, num::ParseIntError};
+use std::{num::ParseIntError, str::FromStr};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 struct Almanac {
     seeds: Vec<usize>,
@@ -27,7 +27,7 @@ impl FromStr for Almanac {
         let mut maps = Vec::new();
 
         if let Some(line) = lines.next() {
-            if ! line.is_empty() {
+            if !line.is_empty() {
                 bail!("Expected empty line after seeds");
             }
         }
@@ -61,17 +61,18 @@ impl TryFrom<Almanac> for Almanac2 {
     fn try_from(value: Almanac) -> Result<Almanac2> {
         let pairs = value.seeds.chunks_exact(2);
 
-        if ! pairs.remainder().is_empty() {
+        if !pairs.remainder().is_empty() {
             bail!("Seeds has an odd number of values: {:?}", pairs.remainder());
         }
 
-        let seed_ranges: Vec<_> =pairs.map(|pair| (pair[0], pair[1])).collect();
+        let seed_ranges: Vec<_> = pairs.map(|pair| (pair[0], pair[1])).collect();
 
-        Ok(Almanac2{seed_ranges, maps: value.maps})
+        Ok(Almanac2 {
+            seed_ranges,
+            maps: value.maps,
+        })
     }
-
 }
-
 
 #[derive(Debug)]
 struct Map {
@@ -105,23 +106,30 @@ impl FromStr for Map {
 #[cfg(feature = "problem_1")]
 pub mod problem_1 {
 
-    use anyhow::{Context, Result};
     use super::Almanac;
+    use anyhow::{Context, Result};
 
     pub(super) fn solve_almanac(almanac: Almanac) -> Result<usize> {
-        almanac.seeds.into_iter().map(|seed| {
-            almanac.maps.iter().fold(seed, |source, map| {
-                let destin = map.iter().find_map(|map| {
-                    if source >= map.source && source < (map.source+map.size) {
-                        return Some(map.destination + (source - map.source));
-                    }
-                    None
-                }).unwrap_or(source);
-                destin
+        almanac
+            .seeds
+            .into_iter()
+            .map(|seed| {
+                almanac.maps.iter().fold(seed, |source, map| {
+                    let destin = map
+                        .iter()
+                        .find_map(|map| {
+                            if source >= map.source && source < (map.source + map.size) {
+                                return Some(map.destination + (source - map.source));
+                            }
+                            None
+                        })
+                        .unwrap_or(source);
+                    destin
+                })
             })
-        }).min().context("Finding minimum location")
+            .min()
+            .context("Finding minimum location")
     }
-
 
     pub fn solve(input: &str) -> Result<usize> {
         let almanac: Almanac = input.parse()?;
@@ -132,10 +140,10 @@ pub mod problem_1 {
 #[cfg(feature = "problem_2")]
 pub mod problem_2 {
 
-    use anyhow::{Result, Context};
     use super::{Almanac, Almanac2, Map};
+    use anyhow::{Context, Result};
 
-    fn next(source:(usize, usize), map: &Vec<Map>) -> Vec<(usize, usize)> {
+    fn next(source: (usize, usize), map: &Vec<Map>) -> Vec<(usize, usize)> {
         let mut dest = vec![];
         let mut current = source.0;
         let end = source.1;
@@ -147,15 +155,15 @@ pub mod problem_2 {
             let mut min_start_range = None;
             for map in map {
                 if current >= map.source {
-                    if current < map.source+map.size {
-                        let range_end = std::cmp::min(end, map.source+map.size-1);
+                    if current < map.source + map.size {
+                        let range_end = std::cmp::min(end, map.source + map.size - 1);
                         dest.push((
-                            map.destination + (current - map.source) , 
+                            map.destination + (current - map.source),
                             map.destination + (range_end - map.source),
                         ));
-                        current = range_end+1;
+                        current = range_end + 1;
                         continue 'sources;
-                    } 
+                    }
                 }
 
                 if map.source > current {
@@ -166,9 +174,8 @@ pub mod problem_2 {
                 }
             }
 
-
             if let Some(min_start) = min_start_range {
-                dest.push((current, min_start-1));
+                dest.push((current, min_start - 1));
                 current = min_start;
             } else {
                 dest.push((current, end));
@@ -180,11 +187,27 @@ pub mod problem_2 {
     }
 
     pub(super) fn solve_almanac(almanac: Almanac2) -> Result<usize> {
-        almanac.seed_ranges.into_iter().map(|(start, size)| {
-            almanac.maps.iter().fold(vec![(start, start+size-1)], |source, map| {
-                source.into_iter().map(|(start, end)| next((start, end), map)).flatten().collect()
-            }).into_iter().map(|(f, _)| f).min()
-        }).flatten().min().context("Finding minimum location")
+        almanac
+            .seed_ranges
+            .into_iter()
+            .map(|(start, size)| {
+                almanac
+                    .maps
+                    .iter()
+                    .fold(vec![(start, start + size - 1)], |source, map| {
+                        source
+                            .into_iter()
+                            .map(|(start, end)| next((start, end), map))
+                            .flatten()
+                            .collect()
+                    })
+                    .into_iter()
+                    .map(|(f, _)| f)
+                    .min()
+            })
+            .flatten()
+            .min()
+            .context("Finding minimum location")
     }
 
     pub fn solve(input: &str) -> Result<usize> {
