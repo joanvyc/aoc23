@@ -1,21 +1,22 @@
-use std::{
-    cmp::Ordering, collections::HashMap,
-    ops::Deref, str::FromStr, mem::discriminant,
-};
+use std::{collections::HashMap, hash::Hash, str::FromStr, cmp::{Ordering, PartialOrd}, ops::Deref};
+use anyhow::{Context, bail};
 
-use anyhow::Context;
+trait Card: Ord + PartialEq + Eq + Hash {
+    fn from_char(c: char) -> Self;
+    fn is_wildcard(&self) -> bool;
+}
 
-#[derive(Ord, PartialEq, Eq, Debug)]
-struct Card(char);
+#[derive(Debug, Ord, PartialEq, Eq, Hash)]
+struct Card1(char);
 
-impl Deref for Card {
+impl Deref for Card1 {
     type Target = char;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl PartialOrd for Card {
+impl PartialOrd for Card1 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         const HAND_STRING_ORD: [char; 13] = [
             'A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2',
@@ -24,173 +25,202 @@ impl PartialOrd for Card {
         let s = HAND_STRING_ORD.iter().position(|&c| c == **self).unwrap();
         let o = HAND_STRING_ORD.iter().position(|&c| c == **other).unwrap();
 
-        o.partial_cmp(&s)
+        s.partial_cmp(&o)
+    } 
+}
+
+impl Card for Card1 {
+    fn from_char(c: char) -> Self {
+        Self(c)
+    }
+
+    fn is_wildcard(&self) -> bool {
+        false
     }
 }
 
-#[derive(Ord, PartialEq, Eq, Debug)]
-struct HandString(String);
+#[derive(Debug, Ord, PartialEq, Eq, Hash)]
+struct Card2(char);
 
-impl Deref for HandString {
-    type Target = String;
+impl Deref for Card2 {
+    type Target = char;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl PartialOrd for HandString {
+impl PartialOrd for Card2 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        for (s, o) in self.0.chars().zip(other.0.chars()) {
-            match Card(s).partial_cmp(&Card(o)) {
-                Some(Ordering::Equal) => (),
-                ord => return ord,
-            }
-        }
+        const HAND_STRING_ORD: [char; 13] = [
+            'A', 'K', 'Q', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'J', 
+        ];
 
-        Some(Ordering::Equal)
+        let s = HAND_STRING_ORD.iter().position(|&c| c == **self).unwrap();
+        let o = HAND_STRING_ORD.iter().position(|&c| c == **other).unwrap();
+
+        s.partial_cmp(&o)
+    } 
+
+}
+
+impl Card for Card2 {
+    fn from_char(c: char) -> Self {
+        Self(c)
+    }
+
+    fn is_wildcard(&self) -> bool {
+        **self == 'J'
     }
 }
 
-#[derive(Ord, PartialEq, Eq, Debug)]
-struct HandPlay {
-    hand: (Hand, HandString),
+#[derive(Debug, Ord, PartialEq, Eq)]
+struct Hand<C: Card> {
+    cards: Vec<C>,
     bid: usize,
 }
 
-impl FromStr for HandPlay {
+impl<C> FromStr for Hand<C> 
+where
+    C: Card
+{
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (hand, bid) = s.split_once(' ').context("Spliting entry")?;
+    fn from_str(s: &str) -> anyhow::Result<Self> {
+        let (cards, bid) = s.split_once(' ').context("Spliting round")?;
+
+        if cards.len() != 5 {
+            bail!("Hand ought to have 5 cards")
+        }
+
+        let cards: Vec<C> = cards.chars().map(|c| C::from_char(c)).collect();
         let bid: usize = bid.parse()?;
 
-        Ok(HandPlay {
-            hand: (
-                hand.parse().context("Parsing hand")?,
-                HandString(hand.to_string()),
-            ),
-            bid,
-        })
+        Ok(Self{cards, bid})
     }
 }
 
-impl PartialOrd for HandPlay {
+impl<C> PartialOrd for Hand<C> 
+where
+    C: PartialOrd + PartialEq + Card
+{
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(
-            self.hand.0.partial_cmp(&other.hand.0)?
-                .then(self.hand.1.partial_cmp(&other.hand.1)?)
-        )
+        let self_type: HandType = self.try_into().ok()?;
+        let other_type: HandType = other.try_into().ok()?;
+
+        Some(self_type.partial_cmp(&other_type)?
+            .then(self.cards.partial_cmp(&other.cards)?))
     }
 }
 
-#[derive(Ord, PartialEq, Eq, Debug)]
-enum Hand {
-    Five(Card),
-    Four(Card),
-    Full((Card, Card)),
-    Three(Card),
-    TwoPair((Card, Card)),
-    OnePair(Card),
-    HighCard(Card),
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
+enum HandType {
+    Five,
+    Four,
+    Full,
+    Three,
+    Two,
+    One,
+    High,
 }
 
-impl FromStr for Hand {
-    type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let cards = s.chars().fold(HashMap::new(), |mut map, card| {
-            *map.entry(card).or_insert(0usize) += 1;
-            map
+impl<C: Card> TryFrom<&Hand<C>> for HandType 
+{
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Hand<C>) -> anyhow::Result<Self> {
+
+        use HandType::*;
+
+        let groups = value.cards.iter().fold(HashMap::new(), |mut groups, card| {
+            *groups.entry(card).or_insert(0usize) += 1;
+            groups
         });
 
-        let mut cards = cards.iter().collect::<Vec<_>>();
-        cards.sort_by(|a, b| b.1.cmp(a.1).then(b.0.cmp(a.0)));
+        let mut groups = groups.iter().collect::<Vec<_>>();
+        let wildcards: usize = groups.iter().find_map(|(card, reps)| {
+            card.is_wildcard().then_some(**reps)
+        }).unwrap_or(0usize);
 
-        let mut last = None;
-        for card in cards {
-            match card {
-                (&card, 5) => return Ok(Hand::Five(Card(card))),
-                (&card, 4) => return Ok(Hand::Four(Card(card))),
-                (&card, 3) => last = Some(Hand::Three(Card(card))),
-                (&card, 2) => match last {
-                    Some(Hand::Three(c)) => return Ok(Hand::Full((c, Card(card)))),
-                    Some(Hand::OnePair(c)) => return Ok(Hand::TwoPair((c, Card(card)))),
-                    None => last = Some(Hand::OnePair(Card(card))),
-                    _ => unreachable!("No other combination possbile bc ordering and max 5 cards"),
-                },
-                (&card, 1) => match last {
-                    None => last = Some(Hand::HighCard(Card(card))),
-                    Some(Hand::HighCard(c)) if Card(card) > c => {
-                        last = Some(Hand::HighCard(Card(card)))
+        if wildcards == 5usize {
+            return Ok(Five);
+        }
+
+        groups.retain(|&card| !card.0.is_wildcard());
+        groups.sort_by(|a, b| b.1.cmp(a.1).then(b.0.cmp(a.0)));
+        let mut groups: Vec<usize> = groups.iter().map(|(_, reps)| **reps).collect();
+        if let Some(largest) = groups.get_mut(0) {
+            *largest += wildcards;
+        } else {
+            bail!("adding wildcard");
+        }
+
+        let mut hand_type = None;
+
+        for reps in groups {
+            match reps {
+                5 => hand_type = Some(Five),
+                4 => hand_type = Some(Four),
+                3 => hand_type = Some(Three),
+                2 => {
+                    hand_type = match hand_type {
+                        Some(Three) => Some(Full),
+                        Some(One)   => Some(Two),
+                        None => Some(One),
+                        _ => unreachable!("Others are guarded by hand max size (5)"),
+
                     }
-                    _ => return last.context("Impossible, guarded by match"),
                 },
-                _ => unreachable!(""),
+                1 => {
+                    hand_type = match hand_type {
+                        None => Some(High),
+                        _ => break,
+                    }
+                },
+                _ => unreachable!("No more than 5 cards should be counted")
             }
         }
 
-        last.context("No card found")
+        hand_type.context("No cards found")
     }
 }
 
-impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        use Hand::*;
-        match (self, other) {
-            (s, o) if discriminant(s) == discriminant(o) => Some(Ordering::Equal),
-            (Five(_), _) => Some(Ordering::Greater),
-            (_, Five(_)) => Some(Ordering::Less),
+fn solve<C: Card>(hands: Vec<Hand<C>>) -> anyhow::Result<usize> {
+    let mut game = hands;
+    game.sort();
 
-            (Four(_), _) => Some(Ordering::Greater),
-            (_, Four(_)) => Some(Ordering::Less),
+    let sum = game.into_iter().rev().enumerate().fold(0, |sum, (i, hand)| {
+        sum + (i+1)*hand.bid
+    });
 
-            (Full(_), _) => Some(Ordering::Greater),
-            (_, Full(_)) => Some(Ordering::Less),
-
-            (Three(_), _) => Some(Ordering::Greater),
-            (_, Three(_)) => Some(Ordering::Less),
-
-            (TwoPair(_), _) => Some(Ordering::Greater),
-            (_, TwoPair(_)) => Some(Ordering::Less),
-
-            (OnePair(_), _) => Some(Ordering::Greater),
-            (_, OnePair(_)) => Some(Ordering::Less),
-
-            (HighCard(_), _) => Some(Ordering::Greater),
-        }
-    }
+    Ok(sum)
 }
 
-#[cfg(feature = "problem_1")]
 pub mod problem_1 {
 
-    use super::{Hand, HandPlay};
-    use anyhow::{Context, Result};
+    use super::{Hand, Card1};
+    use anyhow::{Result, Context};
 
     pub fn solve(input: &str) -> Result<usize> {
-        let mut game = input
-            .lines()
-            .map(|round| round.parse::<HandPlay>())
-            .collect::<Result<Vec<_>>>()
-            .context("Parsing the rounds")?;
-        game.sort();
+        let game = input.lines().map(|hand| hand.parse::<Hand<Card1>>())
+        .collect::<Result<Vec<_>>>().context("Parsing hands")?;
 
-        let sum = game.into_iter().enumerate();
-        let sum = sum.fold(0, |sum, (i, hand)| {
-            sum + (i + 1) * hand.bid
-        });
-
-        Ok(sum)
+        super::solve(game)
     }
 }
 
 #[cfg(feature = "problem_2")]
 pub mod problem_2 {
 
-    use super::Hand;
+    use super::{Hand, Card2};
     use anyhow::{Context, Result};
 
-    pub fn solve(input: &str) -> Result<usize> {}
+    pub fn solve(input: &str) -> Result<usize> {
+        let game = input.lines().map(|hand| hand.parse::<Hand<Card2>>())
+            .collect::<Result<Vec<_>>>().context("Parsing hands")?;
+
+        super::solve(game)
+    }
 }
 
 #[cfg(test)]
@@ -200,12 +230,11 @@ mod test {
     use std::error::Error;
     #[allow(unused_imports)]
     use std::fs::read_to_string;
-
     #[cfg(feature = "problem_1")]
     const P1_TRAIN_SOLUTION: usize = 6440;
 
     #[cfg(feature = "problem_2")]
-    const P2_TRAIN_SOLUTION: usize = 71503;
+    const P2_TRAIN_SOLUTION: usize = 5905;
 
     #[test]
     #[cfg(feature = "problem_1")]
