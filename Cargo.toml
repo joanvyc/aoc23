@@ -14,7 +14,7 @@ regex = "1.10.2"
 test-log = "0.2.13"
 
 [features]
-default = ["day_08"]
+default = ["day_09"]
 problem_1 = []
 problem_2 = []
 day_01 = ["problem_1", "problem_2"]
@@ -25,3 +25,4 @@ day_05 = ["problem_1", "problem_2"]
 day_06 = ["problem_1", "problem_2"]
 day_07 = ["problem_1", "problem_2"]
 day_08 = ["problem_1", "problem_2"]
+day_09 = ["problem_1", "problem_2"]
