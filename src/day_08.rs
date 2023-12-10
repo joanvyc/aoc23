@@ -53,7 +53,11 @@ impl Directions {
     }
 
     fn next(&self, indication: &Indication, from: &str) -> anyhow::Result<&str> {
-        Ok(self.0.get(from).context("getting directions")?.to(indication))
+        Ok(self
+            .0
+            .get(from)
+            .context("getting directions")?
+            .to(indication))
     }
 }
 
@@ -115,11 +119,10 @@ pub mod problem_1 {
 #[cfg(feature = "problem_2")]
 pub mod problem_2 {
 
-
     use super::{Directions, Indication};
     use anyhow::{Context, Result};
-    use regex::Regex;
     use num::Integer;
+    use regex::Regex;
 
     pub fn solve(input: &str) -> Result<usize> {
         let mut map = input.lines();
@@ -132,7 +135,9 @@ pub mod problem_2 {
             .context("Parsing indications")?;
         let map = map.skip(1);
 
-        let parse = Regex::new(r#"(?<from>[A-Z0-9]{3}) = \((?<left>[A-Z0-9]{3}), (?<right>[A-Z0-9]{3})\)"#)?;
+        let parse = Regex::new(
+            r#"(?<from>[A-Z0-9]{3}) = \((?<left>[A-Z0-9]{3}), (?<right>[A-Z0-9]{3})\)"#,
+        )?;
 
         let directions = map.fold(Directions::new(), |mut dir, direction| {
             let caps = parse.captures(direction).unwrap();
@@ -140,36 +145,49 @@ pub mod problem_2 {
             dir
         });
 
-        let starts: Vec<String> = directions.keys().filter(|start| start.chars().last() == Some('A')).map(|start| {
-            start.to_string()
-        }).collect();
+        let starts: Vec<String> = directions
+            .keys()
+            .filter(|start| start.chars().last() == Some('A'))
+            .map(|start| start.to_string())
+            .collect();
 
         let mut cycles = vec![];
         for start in starts {
             let mut indications = indications.iter().cycle();
-            let state = indications.clone().scan((0, start), |state, indication| {
-                if state.1.chars().last() == Some('Z') {
-                    return None;
-                }
-                *state = (state.0 + 1, directions.next(indication, &state.1).unwrap().to_string());
-                Some(state.clone())
-            }).last();
+            let state = indications
+                .clone()
+                .scan((0, start), |state, indication| {
+                    if state.1.chars().last() == Some('Z') {
+                        return None;
+                    }
+                    *state = (
+                        state.0 + 1,
+                        directions.next(indication, &state.1).unwrap().to_string(),
+                    );
+                    Some(state.clone())
+                })
+                .last();
 
-            println!{"{state:?}"};
+            println! {"{state:?}"};
             let (offset, position) = state.unwrap();
 
-            let start_cycle = directions.next(indications.next().unwrap(), &position).unwrap();
+            let start_cycle = directions
+                .next(indications.next().unwrap(), &position)
+                .unwrap();
 
-            let state = indications.skip(offset).scan((0, start_cycle), |state, indication| {
-                if state.1.chars().last() == Some('Z') {
-                    return None;
-                }
-                *state = (state.0 + 1, directions.next(indication, &state.1).unwrap());
-                Some(state.clone())
-            }).last();
+            let state = indications
+                .skip(offset)
+                .scan((0, start_cycle), |state, indication| {
+                    if state.1.chars().last() == Some('Z') {
+                        return None;
+                    }
+                    *state = (state.0 + 1, directions.next(indication, &state.1).unwrap());
+                    Some(state.clone())
+                })
+                .last();
 
             let offset = (offset, position);
-            println!{"Offset: {offset:?}, Cycle: {state:?}"};
+            println! {"Offset: {offset:?}, Cycle: {state:?}"};
 
             if let Some((cycle, _)) = state {
                 cycles.push(cycle);
@@ -180,25 +198,27 @@ pub mod problem_2 {
             4974466197329281024
         }
 
-        cycles.into_iter().reduce(|lcm: usize, c| lcm.lcm(&c)).context("")
+        cycles
+            .into_iter()
+            .reduce(|lcm: usize, c| lcm.lcm(&c))
+            .context("")
 
-
-//        let steps = indications
-//            .iter()
-//            .cycle()
-//            .scan(starts, |from, indication| {
-//                let zcount = from.iter().filter(|position| position.chars().last() == Some('Z')).count();
-//                if zcount > 2 {
-//                    println!("{}/{}: {from:?}", zcount, from.len()); 
-//                }
-//                (!from.iter().all(|position| position.chars().last() == Some('Z'))).then(|| {
-//                    from.iter_mut().for_each(|from| {
-//                       *from = directions.next(indication, &from).unwrap().to_string();
-//                    });
-//                    Some(())
-//                })
-//            })
-//            .count();
+        //        let steps = indications
+        //            .iter()
+        //            .cycle()
+        //            .scan(starts, |from, indication| {
+        //                let zcount = from.iter().filter(|position| position.chars().last() == Some('Z')).count();
+        //                if zcount > 2 {
+        //                    println!("{}/{}: {from:?}", zcount, from.len());
+        //                }
+        //                (!from.iter().all(|position| position.chars().last() == Some('Z'))).then(|| {
+        //                    from.iter_mut().for_each(|from| {
+        //                       *from = directions.next(indication, &from).unwrap().to_string();
+        //                    });
+        //                    Some(())
+        //                })
+        //            })
+        //            .count();
 
         //Ok(0)
     }
