@@ -1,6 +1,7 @@
 use anyhow::Context;
 
-pub fn problem_1(input: String) -> usize {
+#[aoc(day1, part1)]
+pub fn problem_1(input: &str) -> usize {
     let calibration_lines = input
         .lines()
         .map(|line| {
@@ -24,7 +25,8 @@ pub fn problem_1(input: String) -> usize {
     calibration_lines.sum()
 }
 
-pub fn problem_2(input: String) -> usize {
+#[aoc(day1, part2)]
+pub fn problem_2(input: &str) -> usize {
     use nom::{
         branch::alt,
         bytes::complete::{tag, take},

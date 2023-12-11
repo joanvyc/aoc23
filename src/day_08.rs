@@ -1,8 +1,9 @@
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
+use regex::Regex;
 
 #[derive(Debug)]
 enum Indication {
@@ -76,152 +77,97 @@ impl Direction {
     }
 }
 
-pub mod problem_1 {
 
-    use super::{Directions, Indication};
-    use anyhow::{Context, Result};
-    use regex::Regex;
-
-    pub fn solve(input: &str) -> Result<usize> {
-        let mut map = input.lines();
-        let indications = map
-            .next()
-            .context("Getting first line")?
-            .chars()
-            .map(|c| c.try_into())
-            .collect::<Result<Vec<Indication>>>()
-            .context("Parsing indications")?;
-        let map = map.skip(1);
-
-        let parse = Regex::new(r#"(?<from>[A-Z]{3}) = \((?<left>[A-Z]{3}), (?<right>[A-Z]{3})\)"#)?;
-
-        let directions = map.fold(Directions::new(), |mut dir, direction| {
-            let caps = parse.captures(direction).unwrap();
-            dir.add_direction(&caps["from"], &caps["right"], &caps["left"]);
-            dir
-        });
-
-        let steps = indications
-            .iter()
-            .cycle()
-            .scan("AAA", |from, indication| {
-                (from == &"ZZZ").then(|| {
-                    *from = directions.next(indication, from).unwrap();
-                    Some(())
-                })
-            })
-            .count();
-
-        Ok(steps)
-    }
+pub struct Data {
+    indications: Vec<Indication>,
+    directions: Directions,
 }
 
-#[cfg(feature = "problem_2")]
-pub mod problem_2 {
+#[aoc_generator(day8)]
+pub fn input_generator(input: &str) -> Result<Data> {
+    let mut map = input.lines();
+    let indications = map
+        .next()
+        .context("Getting first line")?
+        .chars()
+        .map(|c| c.try_into())
+        .collect::<Result<Vec<Indication>>>()
+        .context("Parsing indications")?;
+    let map = map.skip(1);
 
-    use super::{Directions, Indication};
-    use anyhow::{Context, Result};
-    use num::Integer;
-    use regex::Regex;
+    let parse = Regex::new(r#"(?<from>[A-Z]{3}) = \((?<left>[A-Z]{3}), (?<right>[A-Z]{3})\)"#)?;
 
-    pub fn solve(input: &str) -> Result<usize> {
-        let mut map = input.lines();
-        let indications = map
-            .next()
-            .context("Getting first line")?
-            .chars()
-            .map(|c| c.try_into())
-            .collect::<Result<Vec<Indication>>>()
-            .context("Parsing indications")?;
-        let map = map.skip(1);
+    let directions = map.fold(Directions::new(), |mut dir, direction| {
+        let caps = parse.captures(direction).unwrap();
+        dir.add_direction(&caps["from"], &caps["right"], &caps["left"]);
+        dir
+    });
 
-        let parse = Regex::new(
-            r#"(?<from>[A-Z0-9]{3}) = \((?<left>[A-Z0-9]{3}), (?<right>[A-Z0-9]{3})\)"#,
-        )?;
+    Ok(Data {
+        indications,
+        directions,
+    })
+}
 
-        let directions = map.fold(Directions::new(), |mut dir, direction| {
-            let caps = parse.captures(direction).unwrap();
-            dir.add_direction(&caps["from"], &caps["right"], &caps["left"]);
-            dir
-        });
+#[aoc(day8, part1)]
+pub fn solve_1(input: &Data) -> Result<usize> {
+    let Data {
+        indications,
+        directions,
+    } = input;
+    let steps = indications
+        .iter()
+        .cycle()
+        .scan("AAA", |from, indication| {
+            (from != &"ZZZ").then(|| {
+                *from = directions.next(indication, from).unwrap();
+                Some(())
+            })
+        })
+        .count();
 
-        let starts: Vec<String> = directions
-            .keys()
-            .filter(|start| start.chars().last() == Some('A'))
-            .map(|start| start.to_string())
-            .collect();
+    Ok(steps)
+}
 
-        let mut cycles = vec![];
-        for start in starts {
-            let mut indications = indications.iter().cycle();
-            let state = indications
-                .clone()
-                .scan((0, start), |state, indication| {
-                    if state.1.chars().last() == Some('Z') {
-                        return None;
-                    }
-                    *state = (
-                        state.0 + 1,
-                        directions.next(indication, &state.1).unwrap().to_string(),
-                    );
-                    Some(state.clone())
-                })
-                .last();
+use num::Integer;
 
-            println! {"{state:?}"};
-            let (offset, position) = state.unwrap();
+#[aoc(day8, part2)]
+pub fn solve_2(input: &Data) -> Result<usize> {
+    let Data {
+        indications,
+        directions,
+    } = input;
 
-            let start_cycle = directions
-                .next(indications.next().unwrap(), &position)
-                .unwrap();
+    let starts: Vec<String> = directions
+        .keys()
+        .filter(|start| start.chars().last() == Some('A'))
+        .map(|start| start.to_string())
+        .collect();
 
-            let state = indications
-                .skip(offset)
-                .scan((0, start_cycle), |state, indication| {
-                    if state.1.chars().last() == Some('Z') {
-                        return None;
-                    }
-                    *state = (state.0 + 1, directions.next(indication, &state.1).unwrap());
-                    Some(state.clone())
-                })
-                .last();
+    let mut cycles = vec![];
+    for start in starts {
+        let indications = indications.iter().cycle();
+        let cycle = indications
+            .scan((0, start), |state, indication| {
+                if state.1.chars().last() == Some('Z') {
+                    return None;
+                }
+                *state = (
+                    state.0 + 1,
+                    directions.next(indication, &state.1).unwrap().to_string(),
+                );
+                Some(state.0)
+            })
+            .last()
+            .unwrap();
 
-            let offset = (offset, position);
-            println! {"Offset: {offset:?}, Cycle: {state:?}"};
-
-            if let Some((cycle, _)) = state {
-                cycles.push(cycle);
-            } else {
-                panic!("AAAAA");
-            }
-
-            4974466197329281024
-        }
-
-        cycles
-            .into_iter()
-            .reduce(|lcm: usize, c| lcm.lcm(&c))
-            .context("")
-
-        //        let steps = indications
-        //            .iter()
-        //            .cycle()
-        //            .scan(starts, |from, indication| {
-        //                let zcount = from.iter().filter(|position| position.chars().last() == Some('Z')).count();
-        //                if zcount > 2 {
-        //                    println!("{}/{}: {from:?}", zcount, from.len());
-        //                }
-        //                (!from.iter().all(|position| position.chars().last() == Some('Z'))).then(|| {
-        //                    from.iter_mut().for_each(|from| {
-        //                       *from = directions.next(indication, &from).unwrap().to_string();
-        //                    });
-        //                    Some(())
-        //                })
-        //            })
-        //            .count();
-
-        //Ok(0)
+        cycles.push(cycle);
     }
+
+    cycles
+        .into_iter()
+        .reduce(|lcm: usize, c| lcm.lcm(&c))
+        .context("")
 }
 
 #[cfg(test)]
