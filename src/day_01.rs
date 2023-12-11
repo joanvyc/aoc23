@@ -109,7 +109,7 @@ mod test {
     #[test]
     fn train_problem_1() -> Result<(), Box<dyn Error>> {
         let calibration_lines = read_to_string("resources/day_01/problem_1_train.inp")?;
-        let result = problem_1(calibration_lines);
+        let result = problem_1(&calibration_lines);
         assert_eq!(result, 142);
         Ok(())
     }
@@ -117,7 +117,7 @@ mod test {
     #[test_log::test]
     fn solve_problem_1() -> Result<(), Box<dyn Error>> {
         let calibration_lines = read_to_string("resources/day_01/problem_1.inp")?;
-        let result = problem_1(calibration_lines);
+        let result = problem_1(&calibration_lines);
 
         println!("{result}");
         Ok(())
@@ -126,7 +126,7 @@ mod test {
     #[test]
     fn train_problem_2() -> Result<(), Box<dyn Error>> {
         let calibration_lines = read_to_string("resources/day_01/problem_2_train.inp")?;
-        let result = problem_2(calibration_lines);
+        let result = problem_2(&calibration_lines);
         assert_eq!(result, 281);
         Ok(())
     }
@@ -134,7 +134,7 @@ mod test {
     #[test]
     fn solve_problem_2() -> Result<(), Box<dyn Error>> {
         let calibration_lines = read_to_string("resources/day_01/problem_2.inp")?;
-        let result = problem_2(calibration_lines);
+        let result = problem_2(&calibration_lines);
 
         println!("{result}");
         Ok(())

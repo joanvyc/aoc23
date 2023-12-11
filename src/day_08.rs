@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Context, Result};
+use regex::Regex;
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
-use regex::Regex;
 
 #[derive(Debug)]
 enum Indication {
@@ -76,7 +76,6 @@ impl Direction {
         }
     }
 }
-
 
 pub struct Data {
     indications: Vec<Indication>,
