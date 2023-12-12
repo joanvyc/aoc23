@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
 enum Dir {
     East,
     West,
@@ -198,7 +198,7 @@ pub fn solve_2(input: &Input) -> Result<usize> {
     use Dir::*;
     let space = &input.space;
 
-    let mut pos = vec![North, East, South, West]
+    let mut connections = vec![North, East, South, West]
         .into_iter()
         .map(|dir| {
             space
@@ -214,11 +214,24 @@ pub fn solve_2(input: &Input) -> Result<usize> {
         });
 
     //let dirs = pos.collect::<Vec<_>>();
-    let (mut dir, mut pos) = pos.next().unwrap();
-    //let (mut _dir_other, _) = dirs.get(1).unwrap();
+    let (mut dir, mut pos) = connections.next().unwrap();
+    let (mut dir_other, _) = connections.next().unwrap();
+
+    let mut start_directions = vec![dir, dir_other];
+    start_directions.sort();
+    let replacement = match start_directions[0..2]{
+        [East, West] => '-',
+        [East, North] => 'L',
+        [East, South] => 'F',
+        [West, North] => 'J',
+        [West, South] => '7',
+        [North, South] => '|',
+        _ => unreachable!("because its sorted"),
+    };
+    println!{"Replacement is: {replacement}"};
 
     let mut mask = HashMap::new();
-    mask.insert(input.start, 'S');
+    mask.insert(input.start, replacement);
 
     while let Some(tile) = space.get(&pos) {
         if let &Tile('S') = tile {
