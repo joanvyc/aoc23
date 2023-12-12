@@ -232,78 +232,30 @@ pub fn solve_2(input: &Input) -> Result<usize> {
     }
 
     let mut tiles_vertical = HashSet::new();
-
     let mut tiles_horizontal = HashSet::new();
 
     for r in 0..space.h {
-        let mut in_vertical = vec![false];
-        let mut in_horizontal = vec![false];
+        let mut in_vertical = false;
+        let mut in_horizontal = false;
         for c in 0..space.w {
-            match (in_horizontal.last_mut(), mask.get(&(r, c))) {
-                (Some(true), None) => {
+            match (in_horizontal, mask.get(&(r, c))) {
+                (true, None) => {
                     tiles_horizontal.insert((r, c));
                 }
-                (Some(flag), Some('|')) => *flag = !*flag,
-                (Some(_), Some('J' | '7')) => {
-                    in_horizontal.pop();
-                }
-                (Some(_), Some('F' | 'L')) => in_horizontal.push(false),
+                (_, Some('|' | 'J' | 'L')) => in_horizontal = !in_horizontal,
                 _ => (),
             }
-            match (in_vertical.last_mut(), mask.get(&(c, r))) {
-                (Some(&mut true), None) => {
-                    tiles_vertical.insert((c, r));
-                }
-                (Some(flag), Some('|')) => *flag = !*flag,
-                (Some(_), Some('F' | 'L')) => {
-                    in_vertical.pop();
-                }
-                (Some(_), Some('J' | '7')) => in_vertical.push(false),
+            match (in_vertical, mask.get(&(c, r))) {
+                (true, None) => { tiles_vertical.insert((c, r)); },
+                (_, Some('-' | '7' | 'J')) => in_vertical = !in_vertical,
                 _ => (),
             }
         }
-        // L F 7 J
-
-        //  L---7
-        //  L---J
-        //  F---7
-        //  F---J
-        //
-        //  F---------7
-        //  | F--7    |             F 7
-        //  | |  L----J             | |
-        //  | |  F----7             | |
-        //  | L--J    |             J L
-        //  L---------J
-        //
-        //     F---7
-        //     |   |
-        //  F--J   L----7
-        //  |           |
-        //  L--7   F----J
-        //     |   |
-        //     L---J
-        //
     }
 
     let tiles_inside = tiles_vertical
-        .union(&tiles_horizontal)
+        .intersection(&tiles_horizontal)
         .collect::<HashSet<_>>();
-
-    for r in 0..space.h {
-        for c in 0..space.w {
-            if tiles_inside.contains(&(r, c)) {
-                print!("I");
-                continue;
-            }
-            if let Some(v) = mask.get(&(r, c)) {
-                print!("{v}");
-                continue;
-            }
-            print!(".");
-        }
-        println!("");
-    }
 
     Ok(tiles_inside.len())
 }
